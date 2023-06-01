@@ -1,0 +1,7 @@
+Lib/
+Include/
+__pycache__/
+Scripts/
+pyvenv.cfg
+Images/
+Videos/
