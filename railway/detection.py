@@ -1,26 +1,54 @@
 import cv2 as cv
 import numpy as np
 
-BUCKLING_TREHSHOLD = 0.35
-LINE_THRESHOLD = 300
+BUCKLING_TYPE1_TREHSHOLD = 10
+BUCKLING_TYPE2_TREHSHOLD = 10 
+BUCKLING_TYPE3_TREHSHOLD = 10
+LINE_THRESHOLD = 150 
+RESIZE_W = 1000
+RESIZE_H = 600
+
 
 def detectLines(original):
     
-    lines = cv.HoughLines(original, 1, np.pi/90, LINE_THRESHOLD)
+    lines = cv.HoughLines(original, 1, np.pi/360, LINE_THRESHOLD)
 
     return lines
 
-def detectRail_legacy_1(original):
+def detectRail(original):
 
     img = original.copy()
 
-    img = cv.GaussianBlur(img, (0, 0), 0.5)
+    img = sobel(img)
 
-    img = cv.Sobel(img, -1, 1, 0, delta=50)
+    img = cv.GaussianBlur(img, (0, 0), 3.5)
+
+    img = cv.Canny(img, 10, 50)
+
+    return img
+
+def detectRail_legacy_1(original):
+
+    # img = transform(original)
+    # img = img.copy()
+    img = original.copy()
+
+    img = cut(sobel(img))
+    # cv.imshow("sobel", img)
 
     img = cv.GaussianBlur(img, (0, 0), 4)
 
     img = cv.Canny(img, 10, 50)
+    # cv.imshow("canny", img)
+
+    k = cv.getStructuringElement(cv.MORPH_RECT, (15, 15))
+    img = cv.morphologyEx(img, cv.MORPH_CLOSE, k)
+    img = cv.GaussianBlur(img, (0, 0), 4)
+    img = thresholding(img, 100)
+    k = cv.getStructuringElement(cv.MORPH_RECT, (10, 10))
+    img = cv.erode(img, k)
+    img = thresholding(img, 200)
+    cv.imshow("close", img)
 
     return img
 
@@ -47,8 +75,8 @@ def transform(original):
     p3 = [200, 600]
     p4 = [400, 600]
 
-    p5 = [340, 0]
-    p6 = [680, 0]
+    p5 = [345, 0]
+    p6 = [665, 0]
     trans = cv.getPerspectiveTransform(np.array([p1, p2, p3, p4], np.float32), np.array([p5, p6, p3, p4], np.float32))
 
     img = cv.warpPerspective(original.copy(), trans, (0, 0))
@@ -61,9 +89,8 @@ def cut(img):
     img = thresholding(img, np.mean(img)*2)
     return img
 
-def detectRail(original):
+def detectRail_legacy(original):
     
-    # img = transform(original)
     img = original.copy()
 
     img = cv.cvtColor(img, cv.COLOR_BGR2HSV)
@@ -78,17 +105,18 @@ def detectRail(original):
 
     img = cv.add(h, cv.add(s, v))
 
-    img = cv.GaussianBlur(img, (0, 0), 3)
-    k = cv.getStructuringElement(cv.MORPH_RECT, (10, 10))
-    img = cv.morphologyEx(img, cv.MORPH_CLOSE, k)
-    img = thresholding(img, 100)
-    img = cv.GaussianBlur(img, (0, 0), 3)
-    img = cv.erode(img, k)
-    img = thresholding(img, 150)
-    img = cv.dilate(img, k)
-    img = cv.dilate(img, k)
-    img = thresholding(img, 200)
-    img = cv.erode(img, k)
+    # img = cv.GaussianBlur(img, (0, 0), 3)
+    # k = cv.getStructuringElement(cv.MORPH_RECT, (10, 10))
+    # img = cv.morphologyEx(img, cv.MORPH_CLOSE, k)
+    # img = thresholding(img, 100)
+    # img = cv.GaussianBlur(img, (0, 0), 3)
+    # img = cv.erode(img, k)
+
+    # img = thresholding(img, 150)
+    # img = cv.dilate(img, k)
+    # img = cv.dilate(img, k)
+    # img = thresholding(img, 200)
+    # img = cv.erode(img, k)
 
     return img 
 
@@ -110,43 +138,67 @@ def drawLine(original, r, theta):
 
     return img
 
-def detectBuckling(thetas):
+def detectBucklingType1(avgTheta):
+    return avgTheta >= BUCKLING_TYPE1_TREHSHOLD
 
-    thetas = np.sin(thetas)
-    maxTheta = np.max(thetas)
-    minTheta = np.min(thetas)
+def parseList(list):
+    list = np.round(list * 180 / np.pi)
+    list = list - 180*(list//90)
+    return list
 
-    return (maxTheta - minTheta) > BUCKLING_TREHSHOLD
+def getDelta(valueList):
+    maxValue = np.max(valueList)
+    minValue = np.min(valueList)
+    return maxValue - minValue
 
+def detectBucklingType2(thetaList):
+    return getDelta(thetaList) >= BUCKLING_TYPE2_TREHSHOLD
 
-def detect(original):
+def detectBucklingType3(avgThetaList):
+    return getDelta(avgThetaList) >= BUCKLING_TYPE3_TREHSHOLD
 
-    detected = detectRail(original) # 이미지를 넣으면 굵은 선들을 감지한 이미지를 반환함
-    lines = detectLines(detected) # 이미지를 넣으면 감지된 선들을 반환함
-
-    # cv.imshow("Detected", detected)
-
-    drawn = original.copy()
-    thetas = []
-    isBuckling = False
-
-    if lines is not None:
-        for line in lines:
-            r, theta = line[0]
-            # print(f"r: {r}, theta: {theta}")
-            drawn = drawLine(drawn, r, theta) # 감지된 선들을 이미지 위에 그려줌
-            thetas.append(theta)
+class Detector:
+    def __init__(self):
+        self.avgThetaList = np.array([0, 0, 0, 0, 0])
+        self.isBuckling = False
     
-        isBuckling = detectBuckling(thetas)
+    def detect(self, original):
+        resized = cv.resize(original, (RESIZE_W, RESIZE_H))
+        transformed = transform(resized) # 시야(?)를 위에서 보는 것처럼 바꿈
+        detected = detectRail(transformed) # 이미지를 넣으면 굵은 선들을 감지한 이미지를 반환함
+        lines = detectLines(detected) # 이미지를 넣으면 감지된 선들을 반환함
 
-        # cv.imshow("Result", drawn)
-    
-    return isBuckling
+        self.isBuckling = False
+        thetaList = np.array([])
+        drawn = transformed
+
+        if lines is not None:
+            for line in lines:
+                r, theta = line[0]
+                # print(f"r: {r}, theta: {theta}")
+                drawn = drawLine(drawn, r, theta) # 감지된 선들을 이미지 위에 그려줌
+                thetaList = np.append(thetaList, [theta])
+        
+            thetaList = parseList(thetaList)
+            avgTheta = np.mean(thetaList)
+            self.avgThetaList = np.append(self.avgThetaList[1:], np.array([avgTheta]))
+            # self.isBuckling =  detectBucklingType1(avgTheta) or (detectBucklingType2(thetaList) or detectBucklingType3(self.avgThetaList))
+            buk1 = detectBucklingType1(avgTheta)
+            buk2 = detectBucklingType2(thetaList)
+            buk3 = detectBucklingType3(self.avgThetaList)
+        
+
+        # return [drawn, self.isBuckling]
+        return [drawn, buk1, buk2, buk3]
 
 if __name__ == '__main__':
 
-    original = cv.resize(cv.imread("./Images/railway_10.jpg"), (500, 1000))
-    isBuckling = detect(original)
-    print(f"Buckling: {isBuckling}")
+    original = cv.imread("./Images/railway.jpg")
+    detector = Detector()
+    # drawn, isBuckling = detector.detect(original)
+    # print(isBuckling)
+    drawn, buk1, buk2, buk3 = detector.detect(original)
+    cv.imshow("Result", drawn)
+    print(buk1, buk2, buk3)
 
     cv.waitKey(0) # 아무 키나 누르면 종료함
