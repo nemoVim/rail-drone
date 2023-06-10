@@ -8,13 +8,6 @@ LINE_THRESHOLD = 150
 RESIZE_W = 1000
 RESIZE_H = 600
 
-
-def detectLines(original):
-    
-    lines = cv.HoughLines(original, 1, np.pi/360, LINE_THRESHOLD)
-
-    return lines
-
 def detectRail(original):
 
     img = original.copy()
@@ -26,6 +19,12 @@ def detectRail(original):
     img = cv.Canny(img, 10, 50)
 
     return img
+
+def detectLines(original):
+    
+    lines = cv.HoughLines(original, 1, np.pi/360, LINE_THRESHOLD)
+
+    return lines
 
 def detectRail_legacy_1(original):
 
@@ -138,9 +137,6 @@ def drawLine(original, r, theta):
 
     return img
 
-def detectBucklingType1(avgTheta):
-    return avgTheta >= BUCKLING_TYPE1_TREHSHOLD
-
 def parseList(list):
     list = np.round(list * 180 / np.pi)
     list = list - 180*(list//90)
@@ -151,6 +147,9 @@ def getDelta(valueList):
     minValue = np.min(valueList)
     return maxValue - minValue
 
+def detectBucklingType1(avgTheta):
+    return avgTheta >= BUCKLING_TYPE1_TREHSHOLD
+
 def detectBucklingType2(thetaList):
     return getDelta(thetaList) >= BUCKLING_TYPE2_TREHSHOLD
 
@@ -160,17 +159,19 @@ def detectBucklingType3(avgThetaList):
 class Detector:
     def __init__(self):
         self.avgThetaList = np.array([0, 0, 0, 0, 0])
-        self.isBuckling = False
     
     def detect(self, original):
         resized = cv.resize(original, (RESIZE_W, RESIZE_H))
-        transformed = transform(resized) # 시야(?)를 위에서 보는 것처럼 바꿈
+        # transformed = transform(resized) # 시야(?)를 위에서 보는 것처럼 바꿈
+        transformed = resized
         detected = detectRail(transformed) # 이미지를 넣으면 굵은 선들을 감지한 이미지를 반환함
         lines = detectLines(detected) # 이미지를 넣으면 감지된 선들을 반환함
 
-        self.isBuckling = False
         thetaList = np.array([])
         drawn = transformed
+        buk1 = False
+        buk2 = False
+        buk3 = False
 
         if lines is not None:
             for line in lines:
@@ -182,7 +183,7 @@ class Detector:
             thetaList = parseList(thetaList)
             avgTheta = np.mean(thetaList)
             self.avgThetaList = np.append(self.avgThetaList[1:], np.array([avgTheta]))
-            # self.isBuckling =  detectBucklingType1(avgTheta) or (detectBucklingType2(thetaList) or detectBucklingType3(self.avgThetaList))
+            # isBuckling =  detectBucklingType1(avgTheta) or (detectBucklingType2(thetaList) or detectBucklingType3(self.avgThetaList))
             buk1 = detectBucklingType1(avgTheta)
             buk2 = detectBucklingType2(thetaList)
             buk3 = detectBucklingType3(self.avgThetaList)

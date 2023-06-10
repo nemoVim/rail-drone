@@ -2,7 +2,7 @@ from detection import *
 from utils import mergeGray2Color
 import cv2 as cv
 
-cap = cv.VideoCapture("./Videos/hibiscus.mp4")
+cap = cv.VideoCapture("./Videos/underground.mp4")
 
 i = 0
 
@@ -19,13 +19,8 @@ while cap.isOpened():
 
         print(i, end=": ")
 
-        # if i == 100:
-        #     frame = cv.resize(frame, (1000, 600))
-        #     cv.imwrite("./Images/railway.jpg", frame)
-
         # if i > 500 and i < 800:
         if True:
-            frame = cv.resize(frame, (1000, 600))
             # if i == 460:
             #     cv.imwrite("./Images/railway_light3.jpg", frame)
             # merged = mergeGray2Color(drawn, frame)
@@ -36,8 +31,12 @@ while cap.isOpened():
             print(buk1, buk2, buk3)
             if buk1 or (buk2 or buk3):
                 cv.imwrite(f"./Images/buckling/buckling_{i}.jpg", drawn)
+            if i == 840:
+                cv.imwrite("./Images/under_origin.jpg", frame)
+                cv.imwrite("./Images/under_detected.jpg", drawn)
 
             # out.write(merged)
+
         
         # elif i >= 800:
         #     break
