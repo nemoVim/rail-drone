@@ -1,5 +1,4 @@
 from detection import * 
-from utils import mergeGray2Color
 import cv2 as cv
 
 cap = cv.VideoCapture("./Videos/underground.mp4")
@@ -8,7 +7,7 @@ i = 0
 
 fourcc = cv.VideoWriter_fourcc(*'DIVX')
 
-out = cv.VideoWriter('rail.avi', fourcc, 30, (1000, 600))
+out = cv.VideoWriter('./Videos/rail.avi', fourcc, 30, (1000, 600))
 
 detector = Detector()
 
@@ -53,3 +52,13 @@ while cap.isOpened():
 cap.release()
 out.release()
 cv.destroyAllWindows()
+
+# def mergeGray2Color(original_gray, original_color):
+#     gray = original_gray.copy()
+#     color = original_color.copy()
+
+#     img = cv.copyTo(np.uint8(np.full((600, 1000, 3), (0, 255, 0))), np.uint8(gray), color)
+
+#     # img = cv.add(color, gray)
+
+#     return img
